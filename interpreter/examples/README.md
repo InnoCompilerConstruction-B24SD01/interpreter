@@ -1,928 +1,477 @@
-# Примеры запуска
+# Десять примеров запуска
 
-Здесь собраны 15 успешных программ и 15 программ с намеренными ошибками.
-У каждого примера приведены исходный код, команда запуска, вывод и код
-завершения. Сообщения интерпретатора сохранены на английском, как в программе.
+Пять программ завершаются успешно, ещё пять показывают ошибки на разных
+этапах. Каждый пример — небольшой сценарий с несколькими конструкциями языка.
+Сообщения интерпретатора приведены дословно на английском.
 
 ## Подготовка
 
-Из корня репозитория соберите интерпретатор, затем перейдите в каталог примеров:
+Все команды ниже выполняются из корня репозитория, где лежит `verify.py`:
 
 ```sh
-python3 verify.py --build-only
-cd interpreter/examples
+python3 verify.py
 ```
 
-Все команды ниже выполняются из `interpreter/examples` и приведены для macOS.
-На Linux замените `../../.build/darwin/dinterpret` на
-`../../.build/linux/dinterpret`, на Windows — на
-`../../.build/windows/dinterpret.exe`. Путь к программе также печатает сборка.
-
-В диагностике ниже указан только файл, поскольку именно такое имя передаётся
-команде. При запуске с другим путём префикс сообщения изменится.
-`stdout` — стандартный вывод, `stderr` — поток ошибок. Если поток пуст,
-это указано текстом, который сама программа не печатает.
-
-Любой пример можно запустить с флагом `--optimize` перед именем файла.
-Для примера 13 приведены оба варианта команды.
-
-## Успешное выполнение
-
-### 01. Динамические типы и none
-
-Переменная без инициализатора содержит `none`. Присваивание меняет значение и его тип; `is` проверяет текущий тип.
-
-Файл: [01_dynamic_types.d](01_dynamic_types.d).
+На macOS результат успешной сборки и проверки:
 
 ```text
-var x
-print x is none
-x := 7
-print x, x is int
-x := "seven"
-print x, x is string
+Built .build/darwin/dinterpret
+Passed 10 examples with and without optimization.
 ```
 
-Запуск:
+Затем можно выполнить любой пример отдельной командой. На Linux замените
+`.build/darwin/dinterpret` на `.build/linux/dinterpret`, на Windows — на
+`.build/windows/dinterpret.exe`. Подробный порядок перехода в нужный каталог
+описан в [основном README](../../README.md).
 
-```sh
-../../.build/darwin/dinterpret 01_dynamic_types.d
-```
+Ниже `stdout` означает стандартный вывод, `stderr` — поток ошибок. Фразы
+о пустом потоке служат пояснениями и самой программой не печатаются.
+В сообщении об ошибке путь совпадает с аргументом команды. Если запускать
+файл из другого каталога с другим путём, изменится префикс сообщения.
 
-`stdout`:
+## Успешные программы
+
+### 01. Корзина со скидкой и печать чека
+
+Корзина хранит кортежи товаров в массиве. Цикл считает стоимость каждой позиции и общую сумму. При сумме от `100` применяется скидка `10 %`. Чек собирается в кортеж: первое поле читается по позиции, остальные — по имени.
+
+Файл: [01_shopping_cart.d](01_shopping_cart.d).
 
 ```text
-true
-7 true
-seven true
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 02. Арифметика
-
-Умножение выполняется раньше сложения. Целочисленное деление округляется вниз, а наличие вещественного операнда выбирает вещественное деление.
-
-Файл: [02_arithmetic.d](02_arithmetic.d).
-
-```text
-print 2 + 3 * 4
-print -7 / 2
-print 7 / 2.0
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 02_arithmetic.d
-```
-
-`stdout`:
-
-```text
-14
--4
-3.5
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 03. Ветвление if / else
-
-Условие ложно, поэтому выполняется ветка `else`.
-
-Файл: [03_if_else.d](03_if_else.d).
-
-```text
-var temperature := 18
-if temperature >= 20 then
-    print "warm"
+var cart := [{name := "tea", price := 10, quantity := 3}, {name := "bread", price := 20, quantity := 2}, {name := "coffee", price := 50, quantity := 1}]
+var subtotal := 0
+for item in cart loop
+    var cost := item.price * item.quantity
+    subtotal := subtotal + cost
+    print item.name, cost
+end
+var discount := 0
+if subtotal >= 100 then
+    discount := subtotal * 0.1
 else
-    print "cold"
+    print "no discount"
 end
+var receipt := {subtotal := subtotal, discount := discount, total := subtotal - discount}
+print "subtotal", receipt.1
+print "discount", receipt.discount
+print "total", receipt.total
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 03_if_else.d
+.build/darwin/dinterpret interpreter/examples/01_shopping_cart.d
 ```
 
 `stdout`:
 
 ```text
-cold
+tea 30
+bread 40
+coffee 50
+subtotal 120
+discount 12
+total 108
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 04. Цикл while
+### 02. Независимые счета и замыкания
 
-Условие вычисляется перед каждой итерацией. Присваивание уменьшает внешнюю переменную `n`.
+Каждый вызов `makeAccount` создаёт собственную ячейку `balance`. Возвращённая функция меняет её и сохраняет между вызовами. Одноимённая глобальная переменная остаётся равной `1000`. Переменная `report` проходит через `none`, число и строку; проверки `is` показывают текущий тип.
 
-Файл: [04_while.d](04_while.d).
+Файл: [02_account_closures.d](02_account_closures.d).
 
 ```text
-var n := 3
-while n > 0 loop
-    print n
-    n := n - 1
+var balance := 1000
+var makeAccount := func(initial) is
+    var balance := initial
+    return func(delta) is
+        balance := balance + delta
+        return balance
+    end
 end
+var first := makeAccount(10), second := makeAccount(100)
+print "first", first(5), first(2)
+print "second", second(-20)
+print "outer", balance
+var report
+print "empty report", report is none
+report := first(3)
+print "balance", report, report is int
+report := "account updated"
+print report, report is string
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 04_while.d
+.build/darwin/dinterpret interpreter/examples/02_account_closures.d
 ```
 
 `stdout`:
 
 ```text
-3
-2
-1
+first 15 17
+second 80
+outer 1000
+empty report true
+balance 20 true
+account updated true
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 05. Бесконечный цикл и exit
+### 03. Рекурсивная обработка массива и функции как значения
 
-Короткий `if` выполняет одну команду. При `n = 2` команда `exit` завершает ближайший цикл.
+Функция `map` принимает массив и функцию обработки. Факториал вычисляется рекурсивно, а квадрат — функцией с телом-выражением. Обе функции хранятся в массиве `operations`. Цикл по диапазону считает сумму факториалов. Вызов `audit()` печатает эту сумму даже при умножении результата на ноль, в том числе с оптимизацией.
 
-Файл: [05_loop_exit.d](05_loop_exit.d).
-
-```text
-var n := 0
-loop
-    n := n + 1
-    print n
-    if n = 2 => exit
-end
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 05_loop_exit.d
-```
-
-`stdout`:
-
-```text
-1
-2
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 06. Диапазон for
-
-Цикл включает обе границы: `2`, `3` и `4`.
-
-Файл: [06_for_range.d](06_for_range.d).
-
-```text
-for n in 2..4 loop
-    print n
-end
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 06_for_range.d
-```
-
-`stdout`:
-
-```text
-2
-3
-4
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 07. Разреженный массив
-
-Запись по ключу создаёт отдельный элемент. Цикл читает значения по возрастанию ключей: сначала `10`, затем `1000`.
-
-Файл: [07_sparse_array.d](07_sparse_array.d).
-
-```text
-var a := []
-a[1000] := "last"
-a[10] := "first"
-for value in a loop
-    print value
-end
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 07_sparse_array.d
-```
-
-`stdout`:
-
-```text
-first
-last
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 08. Кортеж: имена и позиции полей
-
-Запись в `point.x` меняет поле, доступное также через `point.1`. Позиции начинаются с `1`.
-
-Файл: [08_tuple.d](08_tuple.d).
-
-```text
-var point := {x := 2, y := 3, "point"}
-point.x := 5
-print point.1, point.y, point.3
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 08_tuple.d
-```
-
-`stdout`:
-
-```text
-5 3 point
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 09. Две переменные с общим массивом
-
-Присваивание копирует указатель на коллекцию. Изменение через `b` видно через `a`.
-
-Файл: [09_collection_alias.d](09_collection_alias.d).
-
-```text
-var a := [1, 2]
-var b := a
-b[1] := 9
-print a[1], b[1]
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 09_collection_alias.d
-```
-
-`stdout`:
-
-```text
-9 9
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 10. Функция как аргумент и элемент массива
-
-Функция `apply` принимает другую функцию. Из массива извлекается функция возведения в квадрат и вызывается с аргументом `5`.
-
-Файл: [10_higher_order.d](10_higher_order.d).
-
-```text
-var apply := func(f, x) => f(x)
-var ops := [func(n) => n * n]
-print apply(ops[1], 5)
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 10_higher_order.d
-```
-
-`stdout`:
-
-```text
-25
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 11. Рекурсия
-
-Каждый вызов получает собственный параметр `n`. При нуле функция возвращает `1`, затем вычисляются произведения при возврате из рекурсии.
-
-Файл: [11_factorial.d](11_factorial.d).
+Файл: [03_recursive_map.d](03_recursive_map.d).
 
 ```text
 var factorial := func(n) is
     if n = 0 => return 1
     return n * factorial(n - 1)
 end
-print factorial(5)
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 11_factorial.d
-```
-
-`stdout`:
-
-```text
-120
-```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-### 12. Замыкания
-
-Каждый вызов `makeCounter` создаёт отдельную ячейку `value`. Возвращённая функция сохраняет эту ячейку и меняет её при следующих вызовах.
-
-Файл: [12_closure.d](12_closure.d).
-
-```text
-var makeCounter := func(value) is
-    return func(step) is
-        value := value + step
-        return value
+var map := func(values, transform) is
+    var result := []
+    var index := 1
+    for value in values loop
+        result[index] := transform(value)
+        index := index + 1
     end
+    return result
 end
-var first := makeCounter(10), second := makeCounter(100)
-print first(1), first(2)
-print second(1), first(1)
+var operations := [factorial, func(n) => n * n]
+var input := [3, 4, 5]
+print "factorials", map(input, operations[1])
+print "squares", map(input, operations[2])
+var total := 0
+for n in 1..5 loop
+    total := total + factorial(n)
+end
+var audit := func() is
+    print "factorial sum", total
+    return total
+end
+print "ignored result", audit() * 0
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 12_closure.d
+.build/darwin/dinterpret interpreter/examples/03_recursive_map.d
+```
+
+Тот же результат с оптимизацией:
+
+```sh
+.build/darwin/dinterpret --optimize interpreter/examples/03_recursive_map.d
 ```
 
 `stdout`:
 
 ```text
-11 13
-101 14
+factorials [6, 24, 120]
+squares [9, 16, 25]
+factorial sum 153
+ignored result 0
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 13. Вызов с побочным эффектом и оптимизация
+### 04. Изменение очереди во время обхода
 
-Умножение результата вызова на ноль не отменяет сам вызов: функция печатает `called`. С `--optimize` вывод остаётся таким же.
+Разреженный массив содержит задачи по ключам `10` и `30`, хотя добавлены они в обратном порядке. Переменная `alias` ссылается на тот же массив. Во время обхода задача по ключу `30` заменяется, а по ключу `50` добавляется новая. Цикл продолжает читать заранее созданный снимок и выполняет только `compile` и `test`. Затем программа печатает изменённую очередь, соединяет массивы и обходит объединённый кортеж итогов.
 
-Файл: [13_optimized_call.d](13_optimized_call.d).
+Файл: [04_queue_snapshot.d](04_queue_snapshot.d).
 
 ```text
-var f := func() is
-    print "called"
-    return 7
+var jobs := []
+jobs[30] := "test"
+jobs[10] := "compile"
+var alias := jobs
+var completed := []
+var count := 0
+for job in jobs loop
+    alias[30] := "retest"
+    alias[50] := "package"
+    count := count + 1
+    completed[count] := job
+    print "running " + job
 end
-print f() * 0
+print "current queue", jobs
+print "completed", completed + ["done"]
+var summary := {processed := count} + {queued := 3}
+for value in summary loop
+    print "summary", value
+end
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 13_optimized_call.d
-../../.build/darwin/dinterpret --optimize 13_optimized_call.d
+.build/darwin/dinterpret interpreter/examples/04_queue_snapshot.d
 ```
 
 `stdout`:
 
 ```text
-called
-0
+running compile
+running test
+current queue [compile, retest, package]
+completed [compile, test, done]
+summary 2
+summary 3
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 16. Изменение массива во время обхода
+### 05. Алгоритм Евклида и поиск взаимно простых чисел
 
-Перед циклом создаётся снимок значений `[10, 20]`. Замена второго элемента и добавление третьего меняют исходный массив, но не последовательность текущего обхода.
+Функция `gcd` вычисляет НОД в цикле `while`. Для положительных чисел остаток выражается через целочисленное деление: `a - (a / b) * b`. Внешний `loop` ищет первые четыре положительных числа, взаимно простых с `30`. Короткий `if` завершает поиск через `exit`, а функция возвращает НОД через `return`.
 
-Файл: [16_iteration_snapshot.d](16_iteration_snapshot.d).
+Файл: [05_coprime_search.d](05_coprime_search.d).
 
 ```text
-var values := [10, 20]
-for value in values loop
-    values[2] := 99
-    values[3] := 30
-    print value
+var gcd := func(a, b) is
+    while b /= 0 loop
+        var remainder := a - (a / b) * b
+        a := b
+        b := remainder
+    end
+    return a
 end
-print values
+print "gcd", gcd(48, 18)
+var candidate := 1
+var found := 0
+loop
+    if gcd(candidate, 30) = 1 then
+        print "coprime", candidate
+        found := found + 1
+    end
+    if found = 4 => exit
+    candidate := candidate + 1
+end
+print "checked through", candidate
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 16_iteration_snapshot.d
+.build/darwin/dinterpret interpreter/examples/05_coprime_search.d
 ```
 
 `stdout`:
 
 ```text
-10
-20
-[10, 99, 30]
+gcd 6
+coprime 1
+coprime 7
+coprime 11
+coprime 13
+checked through 13
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 17. Конкатенация и обход кортежа
+## Программы с ошибками
 
-Оператор `+` соединяет строки и создаёт новые внешние коллекции. Цикл по кортежу читает значения полей в порядке объявления.
+В каждом сценарии выполняется отдельный запуск. Код завершения — `1`.
 
-Файл: [17_concatenation.d](17_concatenation.d).
+### 06. Незакрытая строка в настройках отчёта
+
+В значении `title` пропущена закрывающая кавычка. Лексер обнаруживает незавершённый строковый литерал, и выполнение не начинается. Исправьте поле на `title := "weekly report"`, сохранив запятую перед `days`.
+
+Файл: [06_unclosed_string.d](06_unclosed_string.d).
 
 ```text
-print "hello" + " " + "world"
-print [1, 2] + [3]
-var record := {name := "Ada"} + {score := 10}
-for value in record loop
-    print value
-end
+var settings := {title := "weekly report, days := 7}
+var heading := settings.title
+print heading
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 17_concatenation.d
+.build/darwin/dinterpret interpreter/examples/06_unclosed_string.d
+```
+
+`stdout` пуст.
+
+`stderr`:
+
+```text
+interpreter/examples/06_unclosed_string.d: lexical error at 1:27: unterminated string literal; expected closing "
+```
+
+Код завершения: `1`.
+
+### 07. Не закрыто тело функции
+
+Внутренний `if` уже закрыт своим `end`, но функция `shipping` требует ещё один `end`. Парсер обнаруживает конец файла внутри тела функции. Добавьте второй `end` последней строкой.
+
+Файл: [07_missing_function_end.d](07_missing_function_end.d).
+
+```text
+var shipping := func(total) is
+    if total >= 100 then
+        return 0
+    else
+        return 10
+    end
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/07_missing_function_end.d
+```
+
+`stdout` пуст.
+
+`stderr`:
+
+```text
+interpreter/examples/07_missing_function_end.d: syntax error at 7:1: expected 'end' after function body; got EOF
+```
+
+Код завершения: `1`.
+
+### 08. Скидка объявлена в слишком узкой области видимости
+
+Переменная `discount` объявлена внутри ветки `if`, поэтому выражение `return` за пределами ветки её не видит. Ошибка обнаруживается при семантическом анализе: даже строка `checkout started` не печатается. Объявите `var discount := 0` перед условием, а внутри ветки используйте присваивание `discount := 10`.
+
+Файл: [08_discount_scope.d](08_discount_scope.d).
+
+```text
+print "checkout started"
+var finalPrice := func(total) is
+    if total >= 100 then
+        var discount := 10
+    end
+    return total - discount
+end
+print finalPrice(120)
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/08_discount_scope.d
+```
+
+`stdout` пуст.
+
+`stderr`:
+
+```text
+interpreter/examples/08_discount_scope.d: semantic error at 6:20: use of undeclared identifier 'discount'
+```
+
+Код завершения: `1`.
+
+### 09. Среднее для пустой группы
+
+Первая группа успешно обрабатывается и печатается. Во второй группе нет значений, а `count` равен нулю. Деление внутри `average` вызывает ошибку; накопленный вывод сохраняется. Строка с именем второй группы не печатается, поскольку её `print` ещё вычисляет аргументы. Перед делением проверьте количество значений и определите результат для пустой группы, например `if count = 0 => return none`.
+
+Файл: [09_empty_batch.d](09_empty_batch.d).
+
+```text
+var average := func(values, count) is
+    var total := 0
+    for value in values loop
+        total := total + value
+    end
+    return total / count
+end
+var batches := [{name := "morning", values := [10, 20, 30], count := 3}, {name := "evening", values := [], count := 0}]
+print "report started"
+for batch in batches loop
+    print batch.name, average(batch.values, batch.count)
+end
+print "report complete"
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/09_empty_batch.d
 ```
 
 `stdout`:
 
 ```text
-hello world
-[1, 2, 3]
-Ada
-10
+report started
+morning 20
 ```
-
-`stderr` пуст.
-
-Код завершения: `0`.
-
-## Ошибки
-
-Каждый пример этого раздела завершается с кодом `1`. Лексические,
-синтаксические и семантические ошибки обнаруживаются до исполнения программы.
-Ошибки выполнения могут возникнуть после уже выполненных команд.
-
-### 14. Необъявленная переменная
-
-Семантический анализ не находит объявление `missing`, поэтому выполнение не начинается. Объявите переменную до использования или исправьте её имя.
-
-Файл: [14_unknown_variable.d](14_unknown_variable.d).
-
-```text
-print missing
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 14_unknown_variable.d
-```
-
-`stdout` пуст.
 
 `stderr`:
 
 ```text
-14_unknown_variable.d: semantic error at 1:7: use of undeclared identifier 'missing'
+interpreter/examples/09_empty_batch.d: runtime error at 6:18: division by zero
 ```
 
 Код завершения: `1`.
 
-### 15. Деление на ноль
+### 10. Неверная сигнатура функции обработки цен
 
-Ошибка возникает во время выполнения. Предыдущий `print` уже вывел `started`. Проверьте делитель и выполняйте деление только при ненулевом значении.
+`applyPrices` вызывает переданную функцию с одним аргументом — ценой. Функция `withTax` требует два аргумента: цену и ставку. Ошибка возникает при вложенном вызове после строки `pricing started`. Можно передать адаптер, который фиксирует ставку: `applyPrices([100, 200], func(price) => withTax(price, 0.2))`.
 
-Файл: [15_division_by_zero.d](15_division_by_zero.d).
+Файл: [10_callback_arguments.d](10_callback_arguments.d).
 
 ```text
-print "started"
-var divisor := 0
-print 7 / divisor
+var applyPrices := func(prices, transform) is
+    var total := 0
+    for price in prices loop
+        total := total + transform(price)
+    end
+    return total
+end
+var withTax := func(price, rate) => price + price * rate
+print "pricing started"
+print "total", applyPrices([100, 200], withTax)
 ```
 
 Запуск:
 
 ```sh
-../../.build/darwin/dinterpret 15_division_by_zero.d
+.build/darwin/dinterpret interpreter/examples/10_callback_arguments.d
 ```
 
 `stdout`:
 
 ```text
-started
+pricing started
 ```
 
 `stderr`:
 
 ```text
-15_division_by_zero.d: runtime error at 3:9: division by zero
+interpreter/examples/10_callback_arguments.d: runtime error at 4:35: expected 2 argument(s), got 1
 ```
 
 Код завершения: `1`.
 
-### 18. Недопустимый символ
+## Ожидаемые результаты
 
-Лексер не распознаёт `@`. Удалите символ или замените его допустимым выражением, например `print 1`.
+Файлы `.out` содержат ожидаемый `stdout`. Если `.out` отсутствует, поток должен
+быть пустым. Файл `.err` содержит ожидаемую диагностику и означает код
+завершения `1`. Без него ожидаются пустой `stderr` и код `0`.
 
-Файл: [18_invalid_character.d](18_invalid_character.d).
+`verify.py` запускает программы из каталога `interpreter/examples`, передавая
+только имя файла. Поэтому в `.err` нет префикса `interpreter/examples/`,
+который присутствует в приведённых выше запусках из корня.
 
-```text
-print @
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 18_invalid_character.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-18_invalid_character.d: lexical error at 1:7: unexpected character '@'
-```
-
-Код завершения: `1`.
-
-### 19. Пропущенный end
-
-Парсер доходит до конца файла внутри условного блока. Добавьте `end` после команды `print`.
-
-Файл: [19_missing_end.d](19_missing_end.d).
-
-```text
-if true then
-    print "hello"
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 19_missing_end.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-19_missing_end.d: syntax error at 3:1: expected 'end' after conditional statement; got EOF
-```
-
-Код завершения: `1`.
-
-### 20. Повторное объявление
-
-В одной области видимости нельзя дважды объявить `x`. Для изменения существующей переменной замените вторую строку на `x := 2`.
-
-Файл: [20_duplicate_declaration.d](20_duplicate_declaration.d).
-
-```text
-var x := 1
-var x := 2
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 20_duplicate_declaration.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-20_duplicate_declaration.d: semantic error at 2:5: duplicate declaration of 'x' in the same scope; first variable is at 1:5
-```
-
-Код завершения: `1`.
-
-### 21. Return вне функции
-
-На верхнем уровне программы `return` недопустим. Поместите его в тело функции или используйте `print 1`, если нужно вывести значение.
-
-Файл: [21_return_outside_function.d](21_return_outside_function.d).
-
-```text
-return 1
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 21_return_outside_function.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-21_return_outside_function.d: semantic error at 1:1: 'return' is allowed only inside a function
-```
-
-Код завершения: `1`.
-
-### 22. Неподходящие типы операндов
-
-Из строки нельзя вычесть число. Если нужна арифметика, задайте `value` числом. Тип переменной проверяется при выполнении операции.
-
-Файл: [22_invalid_operands.d](22_invalid_operands.d).
-
-```text
-var value := "hello"
-print value - 1
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 22_invalid_operands.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-22_invalid_operands.d: runtime error at 2:13: operator '-' does not accept string and int
-```
-
-Код завершения: `1`.
-
-### 23. Число вместо логического условия
-
-Условие должно иметь тип `bool`. Число `1` автоматически не преобразуется в `true`. Например, используйте условие `condition = 1`.
-
-Файл: [23_non_boolean_condition.d](23_non_boolean_condition.d).
-
-```text
-var condition := 1
-if condition then
-    print "unreachable"
-end
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 23_non_boolean_condition.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-23_non_boolean_condition.d: runtime error at 2:4: if condition must be bool, got int
-```
-
-Код завершения: `1`.
-
-### 24. Отсутствующий ключ массива
-
-В массиве есть только ключ `1`. Прочитайте `values[1]` или сначала запишите значение по ключу `2`.
-
-Файл: [24_missing_array_key.d](24_missing_array_key.d).
-
-```text
-var values := [10]
-print values[2]
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 24_missing_array_key.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-24_missing_array_key.d: runtime error at 2:13: array has no key 2
-```
-
-Код завершения: `1`.
-
-### 25. Строковый индекс массива
-
-Индекс массива должен быть целым числом. Для первого элемента задайте `index := 1`.
-
-Файл: [25_invalid_array_index.d](25_invalid_array_index.d).
-
-```text
-var values := [10]
-var index := "first"
-print values[index]
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 25_invalid_array_index.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-25_invalid_array_index.d: runtime error at 3:13: array index must be int, got string
-```
-
-Код завершения: `1`.
-
-### 26. Отсутствующее поле кортежа
-
-В кортеже объявлены только поля `x` и `y`. Обращайтесь к существующему полю или добавьте `z` при создании кортежа.
-
-Файл: [26_missing_tuple_field.d](26_missing_tuple_field.d).
-
-```text
-var point := {x := 2, y := 3}
-print point.z
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 26_missing_tuple_field.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-26_missing_tuple_field.d: runtime error at 2:12: tuple has no field 'z'
-```
-
-Код завершения: `1`.
-
-### 27. Попытка вызвать число
-
-В переменной `value` лежит число, которое нельзя вызвать. Для вызова присвойте ей функцию; для вывода самого числа используйте `print value`.
-
-Файл: [27_call_non_function.d](27_call_non_function.d).
-
-```text
-var value := 10
-print value(5)
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 27_call_non_function.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-27_call_non_function.d: runtime error at 2:12: call requires func, got int
-```
-
-Код завершения: `1`.
-
-### 28. Неверное количество аргументов
-
-Функция принимает один параметр, но получает два аргумента. Исправьте вызов на `twice(1)` или измените определение функции.
-
-Файл: [28_argument_count.d](28_argument_count.d).
-
-```text
-var twice := func(n) => n * 2
-print twice(1, 2)
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 28_argument_count.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-28_argument_count.d: runtime error at 2:12: expected 1 argument(s), got 2
-```
-
-Код завершения: `1`.
-
-### 29. Превышение глубины вызовов
-
-Функция вызывает себя без условия остановки. При попытке начать 68-й активный вызов срабатывает ограничение. Добавьте условие завершения; для большой глубины вычисления используйте цикл.
-
-Файл: [29_call_depth.d](29_call_depth.d).
-
-```text
-var recurse := func() => recurse()
-print recurse()
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 29_call_depth.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-29_call_depth.d: runtime error at 1:33: maximum call depth exceeded (67)
-```
-
-Код завершения: `1`.
-
-### 30. Переполнение целого числа
-
-К максимальному значению `int64_t` прибавляется единица. Ограничьте входные значения или проверьте границу перед сложением.
-
-Файл: [30_integer_overflow.d](30_integer_overflow.d).
-
-```text
-var maximum := 9223372036854775807
-print maximum + 1
-```
-
-Запуск:
-
-```sh
-../../.build/darwin/dinterpret 30_integer_overflow.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-30_integer_overflow.d: runtime error at 2:15: integer overflow in addition
-```
-
-Код завершения: `1`.
-
-## Автоматическая проверка
-
-Из корня репозитория выполните:
-
-```sh
-python3 verify.py
-```
-
-Проверка сравнивает код завершения, `stdout` и `stderr` для каждого `.d` с
-ожидаемыми файлами `.out` и `.err`, с оптимизацией и без неё. Если `.out`
-отсутствует, ожидается пустой `stdout`. Наличие `.err` означает ожидаемую
-ошибку и код завершения `1`; без него ожидаются пустой `stderr` и код `0`.
+Проверка выполняет каждый пример с оптимизацией и без неё и сравнивает все
+три результата: `stdout`, `stderr` и код завершения.

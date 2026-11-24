@@ -1,1 +1,0 @@
-22_invalid_operands.d: runtime error at 2:13: operator '-' does not accept string and int

@@ -1,1 +1,0 @@
-25_invalid_array_index.d: runtime error at 3:13: array index must be int, got string

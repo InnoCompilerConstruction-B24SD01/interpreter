@@ -1,0 +1,1 @@
+07_missing_function_end.d: syntax error at 7:1: expected 'end' after function body; got EOF
