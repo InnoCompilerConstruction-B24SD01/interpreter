@@ -1,6 +1,0 @@
-running compile
-running test
-current queue [compile, retest, package]
-completed [compile, test, done]
-summary 2
-summary 3

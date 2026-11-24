@@ -1,0 +1,1 @@
+07_invalid_operand.d: runtime error at 4:13: operator '*' does not accept int and string

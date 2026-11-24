@@ -1,1 +1,0 @@
-07_invalid_quantity.d: runtime error at 2:23: operator '*' does not accept int and string

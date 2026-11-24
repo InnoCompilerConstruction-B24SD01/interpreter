@@ -1,284 +1,206 @@
-# Одиннадцать примеров запуска
+# Примеры для защиты
 
-Пять программ завершаются успешно, ещё шесть показывают ошибки выполнения
-(runtime errors). Все одиннадцать проходят лексический, синтаксический и семантический анализ. Каждый пример — небольшой сценарий с несколькими конструкциями языка.
-Сообщения интерпретатора приведены дословно на английском.
+Здесь 11 коротких программ по 3–9 строк: пять успешных и шесть с ошибками
+выполнения. В каждом примере выделена одна основная идея. Все программы проходят
+лексический, синтаксический и семантический анализ.
 
-## Подготовка
+## Запуск
 
-Все команды ниже выполняются из корня репозитория, где лежит `verify.py`:
+Все команды выполняются из корня репозитория, где находится `verify.py`:
 
 ```sh
 python3 verify.py
 ```
 
-На macOS результат успешной сборки и проверки:
+Ожидаемый результат на macOS:
 
 ```text
 Built .build/darwin/dinterpret
 Passed 11 examples with and without optimization.
 ```
 
-Затем можно выполнить любой пример отдельной командой. На Linux замените
+Затем запускайте отдельные файлы командами ниже. На Linux замените
 `.build/darwin/dinterpret` на `.build/linux/dinterpret`, на Windows — на
-`.build/windows/dinterpret.exe`. Подробный порядок перехода в нужный каталог
-описан в [основном README](../../README.md).
+`.build/windows/dinterpret.exe`. Как перейти в нужный каталог, описано
+в [основном README](../../README.md).
 
-Ниже `stdout` означает стандартный вывод, `stderr` — поток ошибок. Фразы
-о пустом потоке служат пояснениями и самой программой не печатаются.
-В сообщении об ошибке путь совпадает с аргументом команды. Если запускать
-файл из другого каталога с другим путём, изменится префикс сообщения.
+На защите удобно сначала назвать ожидаемый результат, затем запустить файл
+и показать участок кода исполнителя, который объясняет результат.
+Начните с суммы и условия (01), затем покажите функцию и рекурсию (03),
+замыкание (02), массив (04) и `while` (05). Ошибки разбирайте по одной (06–11).
+
+`stdout` — стандартный вывод, `stderr` — поток ошибок. Пояснение «пуст» сама
+программа не печатает. Путь в диагностике совпадает с аргументом команды.
 
 ## Успешные программы
 
-### 01. Корзина со скидкой и печать чека
+### 01. Сумма покупок и скидка
 
-Корзина хранит кортежи товаров в массиве. Цикл считает стоимость каждой позиции и общую сумму. При сумме от `100` применяется скидка `10 %`. Чек собирается в кортеж: первое поле читается по позиции, остальные — по имени.
+**Что объяснить на защите:** Цикл берёт цены из массива и каждый раз меняет одну внешнюю переменную `total`. После цикла условие проверяет накопленную сумму и применяет скидку.
 
-Файл: [01_shopping_cart.d](01_shopping_cart.d).
+Сумма `10 + 20 + 30` равна `60`; после вычитания скидки получается `50`.
+
+Файл: [01_sum_discount.d](01_sum_discount.d).
 
 ```text
-var cart := [{name := "tea", price := 10, quantity := 3}, {name := "bread", price := 20, quantity := 2}, {name := "coffee", price := 50, quantity := 1}]
-var subtotal := 0
-for item in cart loop
-    var cost := item.price * item.quantity
-    subtotal := subtotal + cost
-    print item.name, cost
+var total := 0
+for price in [10, 20, 30] loop
+    total := total + price
 end
-var discount := 0
-if subtotal >= 100 then
-    discount := subtotal * 0.1
-else
-    print "no discount"
+print "before discount", total
+if total >= 50 then
+    total := total - 10
 end
-var receipt := {subtotal := subtotal, discount := discount, total := subtotal - discount}
-print "subtotal", receipt.1
-print "discount", receipt.discount
-print "total", receipt.total
+print "after discount", total
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/01_shopping_cart.d
+.build/darwin/dinterpret interpreter/examples/01_sum_discount.d
 ```
 
 `stdout`:
 
 ```text
-tea 30
-bread 40
-coffee 50
-subtotal 120
-discount 12
-total 108
+before discount 60
+after discount 50
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 02. Независимые счета и замыкания
+### 02. Счётчик-замыкание
 
-Каждый вызов `makeAccount` создаёт собственную ячейку `balance`. Возвращённая функция меняет её и сохраняет между вызовами. Одноимённая глобальная переменная остаётся равной `1000`. Переменная `report` проходит через `none`, число и строку; проверки `is` показывают текущий тип.
+**Что объяснить на защите:** `makeCounter` возвращает функцию, которая сохраняет доступ к параметру `start`. Вызов `makeCounter` уже закончился, но ячейка остаётся доступной через замыкание.
 
-Файл: [02_account_closures.d](02_account_closures.d).
+Первый вызов увеличивает `10` до `11`, второй — до `12`. Повторный вызов не создаёт `start` заново.
+
+Файл: [02_counter_closure.d](02_counter_closure.d).
 
 ```text
-var balance := 1000
-var makeAccount := func(initial) is
-    var balance := initial
-    return func(delta) is
-        balance := balance + delta
-        return balance
+var makeCounter := func(start) is
+    return func() is
+        start := start + 1
+        return start
     end
 end
-var first := makeAccount(10), second := makeAccount(100)
-print "first", first(5), first(2)
-print "second", second(-20)
-print "outer", balance
-var report
-print "empty report", report is none
-report := first(3)
-print "balance", report, report is int
-report := "account updated"
-print report, report is string
+var counter := makeCounter(10)
+print counter()
+print counter()
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/02_account_closures.d
+.build/darwin/dinterpret interpreter/examples/02_counter_closure.d
 ```
 
 `stdout`:
 
 ```text
-first 15 17
-second 80
-outer 1000
-empty report true
-balance 20 true
-account updated true
+11
+12
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 03. Рекурсивная обработка массива и функции как значения
+### 03. Факториал
 
-Функция `map` принимает массив и функцию обработки. Факториал вычисляется рекурсивно, а квадрат — функцией с телом-выражением. Обе функции хранятся в массиве `operations`. Цикл по диапазону считает сумму факториалов. Вызов `audit()` печатает эту сумму даже при умножении результата на ноль, в том числе с оптимизацией.
+**Что объяснить на защите:** Каждый вызов получает своё значение `n`. При `n = 0` функция возвращает `1`; затем при возврате из рекурсии вычисляются произведения.
 
-Файл: [03_recursive_map.d](03_recursive_map.d).
+Для `5` получается `5 * 4 * 3 * 2 * 1 = 120`. С `--optimize` вывод тот же.
+
+Файл: [03_factorial.d](03_factorial.d).
 
 ```text
 var factorial := func(n) is
     if n = 0 => return 1
     return n * factorial(n - 1)
 end
-var map := func(values, transform) is
-    var result := []
-    var index := 1
-    for value in values loop
-        result[index] := transform(value)
-        index := index + 1
-    end
-    return result
-end
-var operations := [factorial, func(n) => n * n]
-var input := [3, 4, 5]
-print "factorials", map(input, operations[1])
-print "squares", map(input, operations[2])
-var total := 0
-for n in 1..5 loop
-    total := total + factorial(n)
-end
-var audit := func() is
-    print "factorial sum", total
-    return total
-end
-print "ignored result", audit() * 0
+print factorial(5)
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/03_recursive_map.d
-```
-
-Тот же результат с оптимизацией:
-
-```sh
-.build/darwin/dinterpret --optimize interpreter/examples/03_recursive_map.d
+.build/darwin/dinterpret interpreter/examples/03_factorial.d
 ```
 
 `stdout`:
 
 ```text
-factorials [6, 24, 120]
-squares [9, 16, 25]
-factorial sum 153
-ignored result 0
+120
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 04. Изменение очереди во время обхода
+### 04. Снимок массива в for
 
-Разреженный массив содержит задачи по ключам `10` и `30`, хотя добавлены они в обратном порядке. Переменная `alias` ссылается на тот же массив. Во время обхода задача по ключу `30` заменяется, а по ключу `50` добавляется новая. Цикл продолжает читать заранее созданный снимок и выполняет только `compile` и `test`. Затем программа печатает изменённую очередь, соединяет массивы и обходит объединённый кортеж итогов.
+**Что объяснить на защите:** До первой итерации `iterationValues` копирует значения массива в снимок `[10, 20]`. Тело меняет исходный массив, а цикл продолжает обходить снимок.
 
-Файл: [04_queue_snapshot.d](04_queue_snapshot.d).
+Цикл печатает `10` и `20`, хотя после первой итерации второй элемент исходного массива уже равен `99`. Последний `print` показывает изменённый массив.
+
+Файл: [04_array_snapshot.d](04_array_snapshot.d).
 
 ```text
-var jobs := []
-jobs[30] := "test"
-jobs[10] := "compile"
-var alias := jobs
-var completed := []
-var count := 0
-for job in jobs loop
-    alias[30] := "retest"
-    alias[50] := "package"
-    count := count + 1
-    completed[count] := job
-    print "running " + job
+var values := [10, 20]
+for value in values loop
+    values[2] := 99
+    print value
 end
-print "current queue", jobs
-print "completed", completed + ["done"]
-var summary := {processed := count} + {queued := 3}
-for value in summary loop
-    print "summary", value
-end
+print values
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/04_queue_snapshot.d
+.build/darwin/dinterpret interpreter/examples/04_array_snapshot.d
 ```
 
 `stdout`:
 
 ```text
-running compile
-running test
-current queue [compile, retest, package]
-completed [compile, test, done]
-summary 2
-summary 3
+10
+20
+[10, 99]
 ```
 
 `stderr` пуст.
 
 Код завершения: `0`.
 
-### 05. Алгоритм Евклида и поиск взаимно простых чисел
+### 05. Повторная проверка условия while
 
-Функция `gcd` вычисляет НОД в цикле `while`. Для положительных чисел остаток выражается через целочисленное деление: `a - (a / b) * b`. Внешний `loop` ищет первые четыре положительных числа, взаимно простых с `30`. Короткий `if` завершает поиск через `exit`, а функция возвращает НОД через `return`.
+**Что объяснить на защите:** Условие вычисляется перед каждой итерацией с текущим `n`. Тело увеличивает `n`, пока его квадрат не станет больше `20`.
 
-Файл: [05_coprime_search.d](05_coprime_search.d).
+При `n = 4` условие ещё истинно. После увеличения до `5` условие ложно, поэтому выводится `5 25`.
+
+Файл: [05_square_search.d](05_square_search.d).
 
 ```text
-var gcd := func(a, b) is
-    while b /= 0 loop
-        var remainder := a - (a / b) * b
-        a := b
-        b := remainder
-    end
-    return a
+var n := 1
+while n * n <= 20 loop
+    n := n + 1
 end
-print "gcd", gcd(48, 18)
-var candidate := 1
-var found := 0
-loop
-    if gcd(candidate, 30) = 1 then
-        print "coprime", candidate
-        found := found + 1
-    end
-    if found = 4 => exit
-    candidate := candidate + 1
-end
-print "checked through", candidate
+print n, n * n
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/05_coprime_search.d
+.build/darwin/dinterpret interpreter/examples/05_square_search.d
 ```
 
 `stdout`:
 
 ```text
-gcd 6
-coprime 1
-coprime 7
-coprime 11
-coprime 13
-checked through 13
+5 25
 ```
 
 `stderr` пуст.
@@ -287,220 +209,185 @@ checked through 13
 
 ## Ошибки выполнения
 
-Каждая программа начинает выполняться и успевает вывести результат до ошибки.
-Затем исполнитель останавливается с кодом `1`; предыдущий вывод сохраняется.
-В каждом сценарии выполняется отдельный запуск.
+Каждая программа успевает что-то вывести, затем останавливается с кодом `1`.
+Предыдущий вывод сохраняется. Это показывает, что ошибка возникает в исполнителе.
 
-### 06. Товар отсутствует в складских остатках
+### 06. Отсутствующий элемент массива
 
-В разреженном массиве `stock` задан остаток только для товара `100`, а запрос содержит также товар `200`. Первая строка остатков успешно печатается. При чтении второго ключа возникает ошибка выполнения. Добавьте остаток `stock[200] := 0` или передавайте в обход только ключи, для которых остатки заданы.
+**Что объяснить на защите:** В массиве есть ключи `1` и `2`. Первое чтение успешно, а при чтении ключа `3` исполнитель не находит элемент и выбрасывает `RuntimeError`.
 
-Файл: [06_missing_stock.d](06_missing_stock.d).
+Вывод `10` сохраняется. Чтобы убрать ошибку, читайте `values[2]` или сначала присвойте значение `values[3]`.
+
+Файл: [06_missing_index.d](06_missing_index.d).
 
 ```text
-var stock := []
-stock[100] := 5
-var requested := [100, 200]
-print "inventory started"
-for product in requested loop
-    print "available", product, stock[product]
-end
-print "inventory complete"
+var values := [10, 20]
+print values[1]
+print values[3]
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/06_missing_stock.d
+.build/darwin/dinterpret interpreter/examples/06_missing_index.d
 ```
 
 `stdout`:
 
 ```text
-inventory started
-available 100 5
+10
 ```
 
 `stderr`:
 
 ```text
-interpreter/examples/06_missing_stock.d: runtime error at 6:38: array has no key 200
+interpreter/examples/06_missing_index.d: runtime error at 3:13: array has no key 3
 ```
 
 Код завершения: `1`.
 
-### 07. Строка вместо количества товара
+### 07. Число умножается на строку
 
-В первой позиции количество задано числом, во второй — строкой `"two"`. Семантический анализ допускает обращение к динамическим полям. При вычислении второй позиции `lineTotal` пытается умножить цену на строку и завершается ошибкой. Исправьте количество на число `2` или проверяйте `item.quantity is int` до вычисления стоимости.
+**Что объяснить на защите:** Типы значений переменных проверяются при выполнении операции. `price` содержит число, а `quantity` — строку, поэтому умножение недопустимо.
 
-Файл: [07_invalid_quantity.d](07_invalid_quantity.d).
+Строка `calculating` выводится до ошибки. Для исправления замените `"two"` на число `2`.
+
+Файл: [07_invalid_operand.d](07_invalid_operand.d).
 
 ```text
-var lineTotal := func(item) is
-    return item.price * item.quantity
-end
-var cart := [{name := "tea", price := 10, quantity := 2}, {name := "coffee", price := 50, quantity := "two"}]
-print "checkout started"
-for item in cart loop
-    print item.name, lineTotal(item)
-end
-print "checkout complete"
+var price := 10
+var quantity := "two"
+print "calculating"
+print price * quantity
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/07_invalid_quantity.d
+.build/darwin/dinterpret interpreter/examples/07_invalid_operand.d
 ```
 
 `stdout`:
 
 ```text
-checkout started
-tea 20
+calculating
 ```
 
 `stderr`:
 
 ```text
-interpreter/examples/07_invalid_quantity.d: runtime error at 2:23: operator '*' does not accept int and string
+interpreter/examples/07_invalid_operand.d: runtime error at 4:13: operator '*' does not accept int and string
 ```
 
 Код завершения: `1`.
 
-### 08. У посылки отсутствует вес
+### 08. Отсутствующее поле кортежа
 
-Функция `shippingCost` получает вложенный кортеж `package` и читает поле `weight`. У первого заказа поле есть, поэтому стоимость доставки печатается. У второго заказа указан только признак `fragile`: чтение отсутствующего поля вызывает ошибку выполнения. Добавьте `weight` при создании второго кортежа и передавайте функции посылки с одинаковым набором обязательных полей.
+**Что объяснить на защите:** Кортеж содержит поля `x` и `y`. Чтение `x` успешно; при обращении к `z` исполнитель не находит поле.
 
-Файл: [08_missing_package_field.d](08_missing_package_field.d).
+Вывод `2` сохраняется. Для исправления читайте `point.y` или добавьте поле `z` при создании кортежа.
+
+Файл: [08_missing_field.d](08_missing_field.d).
 
 ```text
-var shippingCost := func(package) is
-    return package.weight * 5
-end
-var orders := [{id := 101, package := {weight := 2, fragile := false}}, {id := 102, package := {fragile := true}}]
-print "shipping started"
-for order in orders loop
-    print "order", order.id, shippingCost(order.package)
-end
-print "shipping complete"
+var point := {x := 2, y := 3}
+print point.x
+print point.z
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/08_missing_package_field.d
+.build/darwin/dinterpret interpreter/examples/08_missing_field.d
 ```
 
 `stdout`:
 
 ```text
-shipping started
-order 101 10
+2
 ```
 
 `stderr`:
 
 ```text
-interpreter/examples/08_missing_package_field.d: runtime error at 2:19: tuple has no field 'weight'
+interpreter/examples/08_missing_field.d: runtime error at 3:12: tuple has no field 'z'
 ```
 
 Код завершения: `1`.
 
-### 09. Среднее для пустой группы
+### 09. Деление на ноль внутри функции
 
-Первая группа успешно обрабатывается и печатается. Во второй группе нет значений, а `count` равен нулю. Деление внутри `average` вызывает ошибку; накопленный вывод сохраняется. Строка с именем второй группы не печатается, поскольку её `print` ещё вычисляет аргументы. Перед делением проверьте количество значений и определите результат для пустой группы, например `if count = 0 => return none`.
+**Что объяснить на защите:** Одна и та же функция сначала получает допустимый делитель, затем нулевой. Ошибка возникает при вычислении `/` в теле функции, поэтому позиция в сообщении указывает на первую строку.
 
-Файл: [09_empty_batch.d](09_empty_batch.d).
+Первый вызов возвращает `10`, второй завершается ошибкой. Перед делением можно добавить проверку `count = 0` в тело-блок функции и вернуть `none` для пустой выборки.
+
+Файл: [09_division_by_zero.d](09_division_by_zero.d).
 
 ```text
-var average := func(values, count) is
-    var total := 0
-    for value in values loop
-        total := total + value
-    end
-    return total / count
-end
-var batches := [{name := "morning", values := [10, 20, 30], count := 3}, {name := "evening", values := [], count := 0}]
-print "report started"
-for batch in batches loop
-    print batch.name, average(batch.values, batch.count)
-end
-print "report complete"
+var average := func(total, count) => total / count
+print average(30, 3)
+print average(0, 0)
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/09_empty_batch.d
+.build/darwin/dinterpret interpreter/examples/09_division_by_zero.d
 ```
 
 `stdout`:
 
 ```text
-report started
-morning 20
+10
 ```
 
 `stderr`:
 
 ```text
-interpreter/examples/09_empty_batch.d: runtime error at 6:18: division by zero
+interpreter/examples/09_division_by_zero.d: runtime error at 1:44: division by zero
 ```
 
 Код завершения: `1`.
 
-### 10. Неверная сигнатура функции обработки цен
+### 10. Неверное число аргументов
 
-`applyPrices` вызывает переданную функцию с одним аргументом — ценой. Функция `withTax` требует два аргумента: цену и ставку. Ошибка возникает при вложенном вызове после строки `pricing started`. Можно передать адаптер, который фиксирует ставку: `applyPrices([100, 200], func(price) => withTax(price, 0.2))`.
+**Что объяснить на защите:** При вызове исполнитель сравнивает число аргументов с числом параметров. Первый вызов передаёт оба числа, второй — только одно.
 
-Файл: [10_callback_arguments.d](10_callback_arguments.d).
+Первый вызов печатает `5`. Второй останавливается до исполнения тела функции. Для исправления передайте второй аргумент, например `add(2, 0)`.
+
+Файл: [10_argument_count.d](10_argument_count.d).
 
 ```text
-var applyPrices := func(prices, transform) is
-    var total := 0
-    for price in prices loop
-        total := total + transform(price)
-    end
-    return total
-end
-var withTax := func(price, rate) => price + price * rate
-print "pricing started"
-print "total", applyPrices([100, 200], withTax)
+var add := func(a, b) => a + b
+print add(2, 3)
+print add(2)
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/10_callback_arguments.d
+.build/darwin/dinterpret interpreter/examples/10_argument_count.d
 ```
 
 `stdout`:
 
 ```text
-pricing started
+5
 ```
 
 `stderr`:
 
 ```text
-interpreter/examples/10_callback_arguments.d: runtime error at 4:35: expected 2 argument(s), got 1
+interpreter/examples/10_argument_count.d: runtime error at 3:10: expected 2 argument(s), got 1
 ```
 
 Код завершения: `1`.
 
-### 11. Превышение глубины рекурсии
+### 11. Граница глубины рекурсии
 
-Функция `sumTo` рекурсивно считает сумму от `1` до `n` и останавливается
-при `n = 0`. Вызов `sumTo(66)` требует 67 одновременно активных вызовов
-(от `66` до `0`) и успешно возвращает `2211`. Затем `sumTo(67)` пытается
-начать 68-й вызов и превышает ограничение исполнителя. Это конечная рекурсия
-с корректным условием остановки, но её глубина слишком велика. Для больших
-значений используйте цикл или формулу суммы.
+**Что объяснить на защите:** Лимит равен 67 одновременно активным вызовам. Для `sumTo(66)` нужны вызовы от `66` до `0`, то есть ровно 67. Для `sumTo(67)` требуется 68, и последний вызов отклоняется.
 
-Первый результат сохраняется в выводе. Второй `print` не успевает вывести
-строку, а команда `print "complete"` не выполняется. С оптимизацией поведение
-такое же: рекурсивные вызовы не заменяются циклом.
+Первая сумма равна `2211` и печатается. Вторая строка и `complete` не выводятся. У рекурсии есть условие остановки, но лимит достигается раньше. Для больших сумм используйте цикл или формулу.
 
 Файл: [11_recursion_limit.d](11_recursion_limit.d).
 
@@ -534,15 +421,33 @@ interpreter/examples/11_recursion_limit.d: runtime error at 3:21: maximum call d
 
 Код завершения: `1`.
 
-## Ожидаемые результаты
+## Где показать реализацию
 
-Файлы `.out` содержат ожидаемый `stdout`. Если `.out` отсутствует, поток должен
-быть пустым. Файл `.err` содержит ожидаемую диагностику и означает код
-завершения `1`. Без него ожидаются пустой `stderr` и код `0`.
+| Пример | Функции исполнителя |
+| --- | --- |
+| 01 | `executeFor`, `assign`, ветка `IfStatement` в `executeStatement` |
+| 02 | Ветка `FunctionLiteral` в `evaluateExpression`, `callFunction`, `Environment::lookup` |
+| 03 | `callFunction`, обработка `ReturnStatement` |
+| 04 | `iterationValues`, `executeFor` |
+| 05 | `executeLoop` |
+| 06 | `arrayLocation`, ветка `IndexExpression` в `evaluateExpression` |
+| 07 | `binaryOperation` |
+| 08 | `tupleElement` |
+| 09 | Проверка делителя в `arithmetic` |
+| 10–11 | Проверки количества аргументов и глубины в `callFunction` |
 
-`verify.py` запускает программы из каталога `interpreter/examples`, передавая
-только имя файла. Поэтому в `.err` нет префикса `interpreter/examples/`,
-который присутствует в приведённых выше запусках из корня.
+Команды и циклы находятся в [interpreter.cpp](../src/interpreter.cpp),
+выражения и вызовы — в [expressions.cpp](../src/expressions.cpp),
+окружения — в [environment.hpp](../src/environment.hpp),
+арифметика — в [value_operations.cpp](../src/value_operations.cpp).
 
-Проверка выполняет каждый пример с оптимизацией и без неё и сравнивает все
-три результата: `stdout`, `stderr` и код завершения.
+## Проверка ожидаемых результатов
+
+Файлы `.out` содержат ожидаемый `stdout`. Файлы `.err` содержат ожидаемую
+диагностику и означают код завершения `1`; без `.err` ожидаются пустой `stderr`
+и код `0`.
+
+`verify.py` запускает каждый пример с оптимизацией и без неё и сравнивает
+`stdout`, `stderr` и код завершения. Программы запускаются из каталога
+`interpreter/examples`, поэтому в `.err` указано только имя файла, без префикса
+`interpreter/examples/`, который присутствует в командах выше.
