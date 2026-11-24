@@ -1,0 +1,21 @@
+Program
+  VariableDeclaration
+    Variable "tools"
+      TupleLiteral
+        TupleElement "name"
+          StringLiteral "\"double\""
+        TupleElement "apply"
+          FunctionLiteral
+            ParameterList
+              Parameter "x"
+            ExpressionBody
+              BinaryExpression "*"
+                Identifier "x"
+                IntegerLiteral "2"
+  PrintStatement
+    MemberExpression "name"
+      Identifier "tools"
+    CallExpression
+      MemberExpression "apply"
+        Identifier "tools"
+      IntegerLiteral "5"

@@ -1,0 +1,37 @@
+{
+  "checked_on": "2026-11-17",
+  "repositories": [
+    {
+      "directory": "project/project-d-examples",
+      "origin": "https://github.com/InnoCompilerConstruction-B24SD01/project-d-examples.git",
+      "branch": "main",
+      "commit": "a89f87072c45dbf7246526ecd24d038f3eeb8939",
+      "commit_date": "2026-09-14T14:03:08+03:00",
+      "clean": true
+    },
+    {
+      "directory": "project/lexer",
+      "origin": "https://github.com/InnoCompilerConstruction-B24SD01/lexer.git",
+      "branch": "dev",
+      "commit": "5fca54703676a2636daa402df74bd0740426f0ba",
+      "commit_date": "2026-10-12T16:01:47+03:00",
+      "clean": true
+    },
+    {
+      "directory": "project/syntax",
+      "origin": "https://github.com/InnoCompilerConstruction-B24SD01/syntax.git",
+      "branch": "main",
+      "commit": "c3295a31854e7fd2066c99ef50cff4ecad89109b",
+      "commit_date": "2026-10-12T16:33:55+03:00",
+      "clean": true
+    },
+    {
+      "directory": "project/semantic",
+      "origin": "https://github.com/InnoCompilerConstruction-B24SD01/semantic.git",
+      "branch": "master",
+      "commit": "eeaf7259720397eb592e0cce48e5473e7b8dbdee",
+      "commit_date": "2026-11-03T17:08:41+03:00",
+      "clean": true
+    }
+  ]
+}

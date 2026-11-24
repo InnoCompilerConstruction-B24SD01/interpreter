@@ -1,0 +1,10 @@
+Program
+  VariableDeclaration
+    Variable "result"
+      BinaryExpression "+"
+        IntegerLiteral "1"
+        BinaryExpression "*"
+          IntegerLiteral "2"
+          IntegerLiteral "3"
+  PrintStatement
+    Identifier "result"

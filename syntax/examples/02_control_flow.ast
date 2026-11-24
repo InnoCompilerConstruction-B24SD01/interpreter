@@ -1,0 +1,16 @@
+Program
+  VariableDeclaration
+    Variable "count"
+      IntegerLiteral "0"
+  WhileLoop
+    BinaryExpression "<"
+      Identifier "count"
+      IntegerLiteral "3"
+    Block "body"
+      Assignment
+        Identifier "count"
+        BinaryExpression "+"
+          Identifier "count"
+          IntegerLiteral "1"
+  PrintStatement
+    Identifier "count"
