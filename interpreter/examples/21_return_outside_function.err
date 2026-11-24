@@ -1,0 +1,1 @@
+21_return_outside_function.d: semantic error at 1:1: 'return' is allowed only inside a function

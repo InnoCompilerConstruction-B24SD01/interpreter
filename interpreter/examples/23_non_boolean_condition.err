@@ -1,0 +1,1 @@
+23_non_boolean_condition.d: runtime error at 2:4: if condition must be bool, got int

@@ -1,0 +1,1 @@
+20_duplicate_declaration.d: semantic error at 2:5: duplicate declaration of 'x' in the same scope; first variable is at 1:5

@@ -1,0 +1,1 @@
+27_call_non_function.d: runtime error at 2:12: call requires func, got int

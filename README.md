@@ -1,46 +1,196 @@
 # Project D
 
-`dinterpret` runs programs written in D, the dynamically typed language used in the Compilers Construction course. The interpreter is written in C++17. A D source file is its input. The file's `print` statements produce its output.
+`dinterpret` выполняет программы на учебном динамически типизированном языке D
+из курса Compiler Construction. Интерпретатор написан на C++17. На вход он
+получает файл `.d`, а команды `print` записывают результат в стандартный поток
+вывода.
 
-## From source code to a result
+## Сборка и первый запуск
 
-```text
-var twice := func(n) => n * 2
-print twice(2 + 3)
-```
-
-This program prints `10`. Four stages work together to produce it.
-
-1. **The lexer** splits the source into tokens, such as the name `twice`, the integer `2` and the operator `+`. Each token carries its source position.
-2. **The hand-written parser** arranges those tokens into an abstract syntax tree (AST). The second statement is a print node containing a function call. The argument of that call is an addition.
-3. **The semantic analyzer** connects each use of a name to its declaration. It resolves `twice` to the variable on the first line and `n` to the function parameter. It also catches errors such as using an undeclared name.
-4. **The interpreter** walks that tree in program order. The declaration stores a function in `twice`. The call evaluates `2 + 3`, binds `n` to `5` for this call, and evaluates `n * 2`. The resulting `10` goes back to `print`.
-
-With `--optimize`, the optimizer can replace the addition in this example with the literal `5` before execution. The program still prints `10`. The command-line entry point in `interpreter/src/main.cpp` connects all four stages.
-
-## Build and run
-
-The build requires Python 3 and a C++17 compiler. On macOS, Apple's Command Line Tools provide the compiler.
+Нужны Python 3 и компилятор C++17: `g++` или `clang++`, доступный через `PATH`.
+На macOS компилятор входит в Command Line Tools. Все команды этого раздела
+выполняются из корня репозитория.
 
 ```sh
 python3 verify.py --build-only
 ```
 
-The build prints the executable path. On Windows, `py -3` can also be used to invoke Python. The executable accepts one D file and an optional optimization flag.
+Скрипт напечатает путь к собранной программе. Выберите путь для своей системы:
+
+| Система | Исполняемый файл |
+| --- | --- |
+| macOS | `.build/darwin/dinterpret` |
+| Linux | `.build/linux/dinterpret` |
+| Windows | `.build/windows/dinterpret.exe` |
+
+На Windows Python также можно запустить командой `py -3` вместо `python3`.
+Дальнейшие команды запуска приведены для macOS; на другой системе замените
+путь к исполняемому файлу по таблице.
+
+Например, программа [вычисления факториала](interpreter/examples/11_factorial.d):
+
+```text
+var factorial := func(n) is
+    if n = 0 => return 1
+    return n * factorial(n - 1)
+end
+print factorial(5)
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/11_factorial.d
+```
+
+Вывод:
+
+```text
+120
+```
+
+Код завершения — `0`.
+
+## Как запустить свой файл
 
 ```text
 dinterpret [--optimize] file.d
 ```
 
-On macOS, the counter example prints two lines.
+Программа принимает один файл. Флаг `--optimize` ставится перед его путём:
+
+```sh
+.build/darwin/dinterpret --optimize interpreter/examples/11_factorial.d
+```
+
+Оптимизатор сворачивает поддерживаемые операции над константами и удаляет
+команды после прямого `return` или `exit` в блоке. Перед преобразованием он
+проверяет семантику всей программы; после преобразования дерево анализируется
+заново и передаётся исполнителю.
+
+## Примеры успешного выполнения
+
+В [каталоге примеров](interpreter/examples/README.md) для каждого сценария есть
+исходный код, команда запуска и ожидаемый результат.
+
+| Конструкция | Пример |
+| --- | --- |
+| `none`, присваивание и смена типа переменной | [01_dynamic_types.d](interpreter/examples/01_dynamic_types.d) |
+| Приоритет операций, целочисленное и вещественное деление | [02_arithmetic.d](interpreter/examples/02_arithmetic.d) |
+| Ветвление `if` / `else` | [03_if_else.d](interpreter/examples/03_if_else.d) |
+| Цикл `while` | [04_while.d](interpreter/examples/04_while.d) |
+| Цикл `loop`, короткий `if` и `exit` | [05_loop_exit.d](interpreter/examples/05_loop_exit.d) |
+| Диапазон `for` с включёнными границами | [06_for_range.d](interpreter/examples/06_for_range.d) |
+| Разреженный массив и обход по возрастанию ключей | [07_sparse_array.d](interpreter/examples/07_sparse_array.d) |
+| Поля кортежа по имени и позиции | [08_tuple.d](interpreter/examples/08_tuple.d) |
+| Общий массив у двух переменных | [09_collection_alias.d](interpreter/examples/09_collection_alias.d) |
+| Функция как аргумент и элемент массива | [10_higher_order.d](interpreter/examples/10_higher_order.d) |
+| Рекурсия и `return` | [11_factorial.d](interpreter/examples/11_factorial.d) |
+| Замыкания с независимыми счётчиками | [12_closure.d](interpreter/examples/12_closure.d) |
+| Сохранение вызова с побочным эффектом при оптимизации | [13_optimized_call.d](interpreter/examples/13_optimized_call.d) |
+| Изменение массива во время `for` | [16_iteration_snapshot.d](interpreter/examples/16_iteration_snapshot.d) |
+| Конкатенация строк, массивов, кортежей и обход кортежа | [17_concatenation.d](interpreter/examples/17_concatenation.d) |
+
+Например, замыкания сохраняют изменяемые значения между вызовами:
 
 ```sh
 .build/darwin/dinterpret interpreter/examples/12_closure.d
 ```
+
+Вывод:
 
 ```text
 11 13
 101 14
 ```
 
-`interpreter/README.md` explains how the interpreter works. The 15 programs in `interpreter/examples` each come with their expected output.
+## Неуспешный запуск
+
+Ошибки записываются в стандартный поток ошибок (`stderr`). Для ошибок исходного
+кода сообщение содержит путь, строку и столбец. Значения кодов завершения:
+
+| Код | Значение |
+| --- | --- |
+| `0` | Выполнение завершилось успешно |
+| `1` | Ошибка чтения файла, анализа, выполнения или записи вывода |
+| `2` | Неверные аргументы командной строки |
+
+Например, [15_division_by_zero.d](interpreter/examples/15_division_by_zero.d):
+
+```text
+print "started"
+var divisor := 0
+print 7 / divisor
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/15_division_by_zero.d
+```
+
+В `stdout` останется уже напечатанная строка:
+
+```text
+started
+```
+
+В `stderr` появится ошибка:
+
+```text
+interpreter/examples/15_division_by_zero.d: runtime error at 3:9: division by zero
+```
+
+Код завершения — `1`. Для исправления нужно проверить делитель перед операцией.
+В отличие от ошибки выполнения, ошибка лексического, синтаксического или
+семантического анализа останавливает запуск до исполнения первой команды.
+
+В [каталоге примеров](interpreter/examples/README.md) также разобраны
+необъявленная переменная, недопустимый символ, пропущенный `end`, повторное
+объявление, `return` вне функции, неверные типы операндов и условия, отсутствующий
+ключ массива, строковый индекс, отсутствующее поле кортежа, вызов числа,
+неверное число аргументов, превышение глубины вызовов и переполнение целого.
+
+## Проверка примеров
+
+```sh
+python3 verify.py
+```
+
+Скрипт собирает интерпретатор и проверяет все 30 файлов `.d` из
+`interpreter/examples` с оптимизацией и без неё. Он сравнивает код завершения,
+`stdout` и `stderr` с файлами `.out` и `.err`. Намеренная ошибка в примере
+считается успешно проверенной, если диагностика и код завершения совпали.
+
+Для полной проверки, включая исходные тесты лексера, парсера, семантического
+анализатора, оптимизатора и 15 программ курса:
+
+```sh
+python3 verify.py --all
+```
+
+Для `--all` на Windows используйте WSL: исходные наборы тестов требуют Unix.
+Параметр `-v` показывает команды сборки и подробный вывод проверок.
+
+## Устройство проекта
+
+```text
+исходный текст → лексер → токены → парсер → AST
+    → семантический анализ → дерево с привязками имён → исполнитель
+```
+
+Лексер выделяет элементы языка и сохраняет их позиции. Парсер строит дерево
+конструкций. Семантический анализатор связывает имена с объявлениями и проверяет
+допустимость конструкций. Исполнитель обходит дерево, вычисляет выражения,
+меняет значения переменных и выполняет команды `print`.
+
+| Каталог или файл | Назначение |
+| --- | --- |
+| `lexer/` | Лексер |
+| `syntax/` | Парсер и AST |
+| `semantic/` | Семантический анализ и оптимизация |
+| `interpreter/` | Значения, окружения и исполнение дерева |
+| `interpreter/src/main.cpp` | CLI и соединение этапов |
+| `verify.py` | Сборка и проверка примеров |
+
+Подробное описание исполнения: [README исполнителя](interpreter/README.md).

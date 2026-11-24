@@ -1,12 +1,32 @@
-# The D interpreter
+# Исполнитель языка D
 
-The `interpreter` module implements the execution stage of Project D. Its input is a `SemanticModel` from the semantic analyzer. This contains the program tree, source positions and the declaration ID for each variable reference. Execution starts at the root of that tree with an empty environment for global variables.
+Модуль `interpreter` выполняет программу Project D по дереву, полученному от
+семантического анализатора. Его вход — `SemanticModel`: дерево с позициями
+исходного кода и идентификаторами объявлений `symbol_id`. Метод
+`Interpreter::run` возвращает `void`; команды `print` пишут в переданный поток
+`std::ostream`, ошибки выполнения передаются исключениями.
 
-## Walking the tree
+Инструкции по сборке находятся в [корневом README](../README.md), а исходный код,
+команды запуска и результаты всех успешных и ошибочных сценариев — в
+[каталоге примеров](examples/README.md).
 
-The executor has two main operations. `executeStatement` performs an action, such as assigning a value, choosing a branch or printing a line. `evaluateExpression` computes a value that a statement or another expression needs. A block executes its statements in source order.
+## Запуск и обход дерева
 
-The range example shows how the same tree can produce different values on successive visits.
+`Interpreter::run` создаёт объект `Execution`. Он начинает обход корня дерева
+с пустым глобальным окружением `Environment`.
+
+У исполнителя две основные операции:
+
+| Операция | Что получает | Что делает | Что возвращает |
+| --- | --- | --- | --- |
+| `executeStatement` | Узел команды и окружение | Объявляет переменную, присваивает, печатает, выбирает ветку или выполняет цикл | `StatementResult` с сигналом управления |
+| `evaluateExpression` | Узел выражения и окружение | Вычисляет литерал, читает переменную, выполняет операцию или вызов | `Value` |
+
+`executeBlock` выполняет команды в порядке исходного текста. Вычисление
+выражений рекурсивно: для `2 + 3 * 4` сначала получаются значения операндов,
+затем произведение `12`, затем сумма `14`.
+
+Пример повторного исполнения одного дерева:
 
 ```text
 for n in 2..4 loop
@@ -14,30 +34,155 @@ for n in 2..4 loop
 end
 ```
 
-The executor evaluates the two bounds once. On the first iteration it creates a local cell for `n` holding `2`. The print statement asks for the value of its child expression, the identifier `n`. The executor uses that identifier's declaration ID to find the cell and prints its contents. On the next two iterations the same print node reads `3` and `4`. Both ends of a D range are inclusive.
+Границы вычисляются один раз. На каждой итерации создаётся окружение с ячейкой
+`n`, содержащей `2`, `3` или `4`. Один и тот же узел `print` читает текущее
+значение по `symbol_id`. Обе границы диапазона включены. Если начало больше
+конца, тело не выполняется.
 
-An `if` executes the branch selected by its boolean condition. A `while` reevaluates its condition before each iteration. Blocks normally advance to the next statement, but they can also signal `exit` or `return`. The nearest loop consumes `exit`. A `return` travels through any enclosing loops and branches back to the current function call.
+`if` выполняет выбранную ветку в дочернем окружении. `while` проверяет условие
+перед каждой итерацией и создаёт новое окружение для тела. Для условий требуется
+значение `bool`.
 
-## Values, variables and collections
+## Передача `exit` и `return`
 
-A C++ `Value` holds one D value at a time. The possible values are `none`, an integer, a real number, a boolean, a string, an array, a tuple or a function. An `Environment` maps declaration IDs to cells holding these values. An inner environment points to its enclosing scope. Declaring `var x` creates a cell containing `none`. Assignment with `:=` replaces its contents, so the same variable can hold an integer and later a string. The expression `x is string` checks its current type.
+Каждая команда возвращает `StatementResult`, состоящий из `flow` и `value`:
 
-Operators use the types of their operands. For example, `-7 / 2` gives the integer `-4` because integer division rounds down. Writing `-7 / 2.0` selects real division and gives `-3.5`. The `=` operator compares two numbers.
+| Сигнал | Действие |
+| --- | --- |
+| `Next` | Блок переходит к следующей команде |
+| `Exit` | Блок передаёт сигнал выше, ближайший цикл завершает работу |
+| `Return` | Блоки, ветки и циклы передают значение до текущего вызова функции |
 
-- **Arrays** store values under integer keys. The literal `[10, "tea"]` creates keys `1` and `2`. Assigning to key `1000` adds one entry. Reading a missing key raises an error. A `for` loop takes a snapshot of the values in increasing key order.
-- **Tuples** have a fixed set of fields in declaration order. In `{x := 2, y := 3}`, the name `x` and position `1` refer to the same field. Updating it by name also changes the value read by position.
-- Assigning an array or tuple to another variable shares the collection. For an array `a`, assigning `b := a` and changing `b[1]` changes what `a[1]` reads. Concatenation with `+` creates a new outer collection.
+После `exit` цикл возвращает `Next`, и продолжаются команды после цикла.
+`return` завершает текущий вызов функции; его значение становится результатом
+выражения вызова.
 
-## Functions, closures and recursion
+## Значения и переменные
 
-Evaluating `func` creates a function value that holds its body and the environment where it was defined. Calling the function evaluates the arguments from left to right and binds the parameters in a fresh local environment. An expression body such as `func(n) => n * 2` returns its expression's value. A block body can return a value with `return`. Reaching its end gives `none`. A call is an expression, so a program can use it in `print f(5)`, an assignment or another expression.
+`Value` — это `std::variant`, который хранит одно значение D: `none`, целое
+`int64_t`, вещественное `double`, `bool`, строку, массив, кортеж или функцию.
+Массивы, кортежи и функции хранятся через `shared_ptr`.
 
-The counter example shows why a function keeps its defining environment. Calling `makeCounter(10)` creates a cell named `value` holding `10`. The returned function still has access to that cell after `makeCounter` finishes. Calling `first(1)` updates it to `11`, and `first(2)` then reads `11` and updates it to `13`. Calling `makeCounter(100)` creates a separate cell for the second counter. This combination of a function and the variables it retains is a **closure**.
+`Environment` сопоставляет `symbol_id` ячейкам `Value`. У каждого внутреннего
+окружения есть ссылка на родительское. Поиск идёт от текущего окружения к
+внешним и возвращает ссылку на найденную ячейку.
 
-Recursion uses the same call mechanism. The executor creates a variable's cell before evaluating its initializer, which lets a function assigned to `factorial` refer to `factorial` inside its body. Up to 67 calls can be active at once. Attempting the 68th reports a runtime error at the call site. Returning from a call frees its place.
+`var x` создаёт ячейку с `none`. Инициализатор вычисляется после создания
+ячейки. Присваивание `:=` заменяет её содержимое, поэтому переменная может
+сначала хранить число, а затем строку. Выражение `x is string` проверяет
+фактический тип значения.
 
-## Output and errors
+Операции выбираются по типам операндов. Например, `-7 / 2` даёт целое `-4`:
+целочисленное деление округляется вниз. Выражение `-7 / 2.0` даёт вещественное
+`-3.5`. Оператор `=` сравнивает числа. Неподходящие типы, переполнение и деление
+на ноль вызывают ошибку выполнения.
 
-`print` writes its values separated by spaces and ends the line with a newline. Source errors include the file, line and column. An undeclared name is found during semantic analysis, before any statement runs. Division by zero is detected when the division executes, so output from an earlier `print` is preserved.
+Бинарные выражения вычисляют левый операнд, затем правый. Это относится и к
+`and` и `or`: оба операнда вычисляются независимо от значения первого.
 
-The `examples` directory contains 15 numbered programs. Each `.d` file is the input. Its matching `.out` gives the expected standard output and an `.err`, when present, gives the expected diagnostic.
+## Массивы и кортежи
+
+Массив хранит элементы в `std::map<int64_t, Value>`. Литерал `[10, "tea"]`
+создаёт ключи `1` и `2`. Запись в `a[1000]` добавляет один элемент. Чтение
+отсутствующего ключа вызывает ошибку.
+
+Для обращения `a[i]` функция `arrayLocation` вычисляет массив и индекс,
+проверяет их типы и возвращает пару «указатель на массив, целочисленный ключ».
+Чтение ищет этот ключ, а присваивание создаёт или заменяет его значение.
+
+Кортеж хранит фиксированный набор полей в порядке объявления. В
+`{x := 2, y := 3}` имя `x` и позиция `1` обозначают одно поле. Изменение через
+`point.x` видно при чтении `point.1`. Несуществующее поле или позиция вызывают
+ошибку.
+
+Перед обходом коллекции `iterationValues` собирает значения в отдельный вектор:
+для массива — по возрастанию ключей, для кортежа — в порядке объявления полей.
+Цикл `for` обходит этот снимок. Добавление или замена элементов исходной
+коллекции не меняет подготовленную последовательность. Копирование поверхностное:
+вложенные массивы и кортежи остаются общими объектами. Этот случай показан в
+[16_iteration_snapshot.d](examples/16_iteration_snapshot.d).
+
+Присваивание `b := a` для массива или кортежа копирует `shared_ptr`. Поэтому
+запись в `b[1]` меняет значение, которое читается через `a[1]`. Конкатенация
+через `+` создаёт новую внешнюю коллекцию; вложенные объекты могут остаться
+общими. У объединённого массива ключи назначаются заново с `1`. При совпадении
+непустых имён полей объединение кортежей завершается ошибкой.
+
+## Функции и окружения вызовов
+
+Вычисление `func` создаёт объект `Function`: ссылку на узел определения и
+сохранённое окружение `closure`. Тело начнёт выполняться при вызове.
+
+`callFunction` выполняет следующие действия:
+
+1. Проверяет глубину вызовов и увеличивает её счётчик.
+2. Вычисляет вызываемое выражение и проверяет, что получена функция.
+3. Сравнивает количество аргументов и параметров.
+4. Создаёт локальное окружение с родителем `function->closure`.
+5. Вычисляет аргументы слева направо в окружении вызывающего кода и записывает
+   значения в ячейки параметров.
+6. Выполняет тело в локальном окружении и возвращает результат.
+
+Тело-выражение, например `func(n) => n * 2`, возвращает вычисленное значение.
+Тело-блок возвращает значение команды `return`; без неё результат — `none`.
+Вызов является выражением, поэтому его можно использовать в `print f(5)`,
+присваивании или другой операции. При выходе из вызова, в том числе по
+исключению, локальный объект `LeaveCall` уменьшает счётчик глубины.
+
+Одновременно могут быть активны 67 вызовов. Попытка начать 68-й вызывает ошибку
+в позиции вызова. Возврат освобождает место для следующего вызова.
+
+## Замыкания и рекурсия
+
+[Пример счётчика](examples/12_closure.d) показывает, зачем функция сохраняет
+окружение создания. Вызов `makeCounter(10)` создаёт ячейку `value` со значением
+`10`. Возвращённая функция сохраняет доступ к ней после завершения
+`makeCounter`. Вызов `first(1)` меняет значение на `11`, а `first(2)` — на `13`.
+Вызов `makeCounter(100)` создаёт отдельную ячейку для второго счётчика.
+Функция вместе с сохранённым окружением называется замыканием.
+
+Рекурсия использует обычный механизм вызова. Ячейка переменной создаётся до
+вычисления инициализатора, поэтому функция, присвоенная `factorial`, может
+обратиться к `factorial` через захваченное окружение. Каждый вызов получает
+собственные ячейки параметров.
+
+## Время жизни объектов
+
+`shared_ptr` освобождает объекты, когда исчезают последние сильные ссылки.
+Однако функция может удерживать окружение, которое хранит саму функцию, а
+массив может содержать себя. Для разрыва таких циклов `RuntimeObjects`
+регистрирует созданные массивы, кортежи и функции через `weak_ptr`.
+
+При завершении запуска деструктор `RuntimeObjects` сбрасывает окружения
+оставшихся функций и очищает элементы оставшихся коллекций. Он вызывается и
+при раскрутке стека после исключения. Во время выполнения `pruneExpired`
+удаляет из реестра записи об уже уничтоженных объектах; сборки недоступных
+циклов во время работы нет.
+
+## Вывод и ошибки
+
+`print` вычисляет значения слева направо, соединяет их через пробел и добавляет
+перевод строки. Строки печатаются без кавычек, функция — как `<func>`, а
+повторное попадание в ту же коллекцию при рекурсивной печати — как `<cycle>`.
+
+Строка `print` записывается после вычисления всех её выражений. Если одно из них
+завершилось ошибкой, собранная строка не выводится. Побочные эффекты выражений
+и вывод предыдущих команд сохраняются.
+
+`RuntimeError` содержит строку и столбец узла. CLI добавляет путь к исходному
+файлу и завершает работу с кодом `1`. Необъявленное имя обнаруживается ещё
+при семантическом анализе, до исполнения. Деление на ноль обнаруживается при
+вычислении операции, поэтому предыдущие `print` уже могли выполниться.
+
+## Где искать реализацию
+
+| Файл | Что реализует |
+| --- | --- |
+| `src/main.cpp` | Чтение файла, этапы обработки и диагностика CLI |
+| `src/interpreter.cpp` | Запуск, команды, блоки, циклы и `print` |
+| `src/expressions.cpp` | Выражения, вызовы функций и присваивания |
+| `src/environment.hpp` | Ячейки переменных, родительские окружения и функции |
+| `include/dlang/value.hpp` | Представление значений и коллекций |
+| `src/value.cpp` | Литералы, типы, форматирование и ошибки |
+| `src/value_operations.cpp` | Арифметика, сравнения и конкатенация |
+| `src/runtime_objects.cpp` | Реестр объектов и разрыв циклических ссылок |
