@@ -1,7 +1,7 @@
 # Десять примеров запуска
 
-Пять программ завершаются успешно, ещё пять показывают ошибки на разных
-этапах. Каждый пример — небольшой сценарий с несколькими конструкциями языка.
+Пять программ завершаются успешно, ещё пять показывают ошибки выполнения
+(runtime errors). Все десять проходят лексический, синтаксический и семантический анализ. Каждый пример — небольшой сценарий с несколькими конструкциями языка.
 Сообщения интерпретатора приведены дословно на английском.
 
 ## Подготовка
@@ -285,98 +285,124 @@ checked through 13
 
 Код завершения: `0`.
 
-## Программы с ошибками
+## Ошибки выполнения
 
-В каждом сценарии выполняется отдельный запуск. Код завершения — `1`.
+Каждая программа начинает выполняться и успевает вывести результат до ошибки.
+Затем исполнитель останавливается с кодом `1`; предыдущий вывод сохраняется.
+В каждом сценарии выполняется отдельный запуск.
 
-### 06. Незакрытая строка в настройках отчёта
+### 06. Товар отсутствует в складских остатках
 
-В значении `title` пропущена закрывающая кавычка. Лексер обнаруживает незавершённый строковый литерал, и выполнение не начинается. Исправьте поле на `title := "weekly report"`, сохранив запятую перед `days`.
+В разреженном массиве `stock` задан остаток только для товара `100`, а запрос содержит также товар `200`. Первая строка остатков успешно печатается. При чтении второго ключа возникает ошибка выполнения. Добавьте остаток `stock[200] := 0` или передавайте в обход только ключи, для которых остатки заданы.
 
-Файл: [06_unclosed_string.d](06_unclosed_string.d).
-
-```text
-var settings := {title := "weekly report, days := 7}
-var heading := settings.title
-print heading
-```
-
-Запуск:
-
-```sh
-.build/darwin/dinterpret interpreter/examples/06_unclosed_string.d
-```
-
-`stdout` пуст.
-
-`stderr`:
+Файл: [06_missing_stock.d](06_missing_stock.d).
 
 ```text
-interpreter/examples/06_unclosed_string.d: lexical error at 1:27: unterminated string literal; expected closing "
-```
-
-Код завершения: `1`.
-
-### 07. Не закрыто тело функции
-
-Внутренний `if` уже закрыт своим `end`, но функция `shipping` требует ещё один `end`. Парсер обнаруживает конец файла внутри тела функции. Добавьте второй `end` последней строкой.
-
-Файл: [07_missing_function_end.d](07_missing_function_end.d).
-
-```text
-var shipping := func(total) is
-    if total >= 100 then
-        return 0
-    else
-        return 10
-    end
-```
-
-Запуск:
-
-```sh
-.build/darwin/dinterpret interpreter/examples/07_missing_function_end.d
-```
-
-`stdout` пуст.
-
-`stderr`:
-
-```text
-interpreter/examples/07_missing_function_end.d: syntax error at 7:1: expected 'end' after function body; got EOF
-```
-
-Код завершения: `1`.
-
-### 08. Скидка объявлена в слишком узкой области видимости
-
-Переменная `discount` объявлена внутри ветки `if`, поэтому выражение `return` за пределами ветки её не видит. Ошибка обнаруживается при семантическом анализе: даже строка `checkout started` не печатается. Объявите `var discount := 0` перед условием, а внутри ветки используйте присваивание `discount := 10`.
-
-Файл: [08_discount_scope.d](08_discount_scope.d).
-
-```text
-print "checkout started"
-var finalPrice := func(total) is
-    if total >= 100 then
-        var discount := 10
-    end
-    return total - discount
+var stock := []
+stock[100] := 5
+var requested := [100, 200]
+print "inventory started"
+for product in requested loop
+    print "available", product, stock[product]
 end
-print finalPrice(120)
+print "inventory complete"
 ```
 
 Запуск:
 
 ```sh
-.build/darwin/dinterpret interpreter/examples/08_discount_scope.d
+.build/darwin/dinterpret interpreter/examples/06_missing_stock.d
 ```
 
-`stdout` пуст.
+`stdout`:
+
+```text
+inventory started
+available 100 5
+```
 
 `stderr`:
 
 ```text
-interpreter/examples/08_discount_scope.d: semantic error at 6:20: use of undeclared identifier 'discount'
+interpreter/examples/06_missing_stock.d: runtime error at 6:38: array has no key 200
+```
+
+Код завершения: `1`.
+
+### 07. Строка вместо количества товара
+
+В первой позиции количество задано числом, во второй — строкой `"two"`. Семантический анализ допускает обращение к динамическим полям. При вычислении второй позиции `lineTotal` пытается умножить цену на строку и завершается ошибкой. Исправьте количество на число `2` или проверяйте `item.quantity is int` до вычисления стоимости.
+
+Файл: [07_invalid_quantity.d](07_invalid_quantity.d).
+
+```text
+var lineTotal := func(item) is
+    return item.price * item.quantity
+end
+var cart := [{name := "tea", price := 10, quantity := 2}, {name := "coffee", price := 50, quantity := "two"}]
+print "checkout started"
+for item in cart loop
+    print item.name, lineTotal(item)
+end
+print "checkout complete"
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/07_invalid_quantity.d
+```
+
+`stdout`:
+
+```text
+checkout started
+tea 20
+```
+
+`stderr`:
+
+```text
+interpreter/examples/07_invalid_quantity.d: runtime error at 2:23: operator '*' does not accept int and string
+```
+
+Код завершения: `1`.
+
+### 08. У посылки отсутствует вес
+
+Функция `shippingCost` получает вложенный кортеж `package` и читает поле `weight`. У первого заказа поле есть, поэтому стоимость доставки печатается. У второго заказа указан только признак `fragile`: чтение отсутствующего поля вызывает ошибку выполнения. Добавьте `weight` при создании второго кортежа и передавайте функции посылки с одинаковым набором обязательных полей.
+
+Файл: [08_missing_package_field.d](08_missing_package_field.d).
+
+```text
+var shippingCost := func(package) is
+    return package.weight * 5
+end
+var orders := [{id := 101, package := {weight := 2, fragile := false}}, {id := 102, package := {fragile := true}}]
+print "shipping started"
+for order in orders loop
+    print "order", order.id, shippingCost(order.package)
+end
+print "shipping complete"
+```
+
+Запуск:
+
+```sh
+.build/darwin/dinterpret interpreter/examples/08_missing_package_field.d
+```
+
+`stdout`:
+
+```text
+shipping started
+order 101 10
+```
+
+`stderr`:
+
+```text
+interpreter/examples/08_missing_package_field.d: runtime error at 2:19: tuple has no field 'weight'
 ```
 
 Код завершения: `1`.
